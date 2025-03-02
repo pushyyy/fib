@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FIB</title>
+  <link rel="stylesheet" href="style.css">
+  <script type="text/javascript" src="app.js" defer></script>
+  <script src="js/title.js"></script>
+  <link rel="icon" type="image/png" href="icons/favicon.png">
+</head>
+<body>
+  <canvas></canvas>
+
+  <script>
+
+      const STAR_COLOR = '#fff';
+      const STAR_SIZE = 1;
+      const STAR_MIN_SCALE = 0.1;
+      const OVERFLOW_THRESHOLD = 25;
+      const STAR_COUNT = ( window.innerWidth + window.innerHeight ) / 8;
+
+      const canvas = document.querySelector( 'canvas' ),
+          context = canvas.getContext( '2d' );
+
+      let scale = 1, 
+          width,
+          height;
+
+      let stars = [];
+
+      let pointerX,
+          pointerY;
+
+      let velocity = { x: 0, y: 0, tx: 0, ty: 0, z: 0.0005 };
+
+      let touchInput = false;
+
+      generate();
+      resize();
+      step();
+
+      window.onresize = resize;
+      canvas.onmousemove = onMouseMove;
+      canvas.ontouchmove = onTouchMove;
+      canvas.ontouchend = onMouseLeave;
+      document.onmouseleave = onMouseLeave;
+
+      function generate() {
+
+          for( let i = 0; i < STAR_COUNT; i++ ) {
+              stars.push({
+                  x: 0,
+                  y: 0,
+                  z: STAR_MIN_SCALE + Math.random() * ( 1 - STAR_MIN_SCALE )
+              });
+          }
+
+      }
+
+      function placeStar( star ) {
+
+          star.x = Math.random() * width;
+          star.y = Math.random() * height;
+
+      }
+
+      function recycleStar( star ) {
+
+          let direction = 'z';
+
+          let vx = Math.abs( velocity.x ),
+              vy = Math.abs( velocity.y );
+
+          if( vx > 1 || vy > 1 ) {
+              let axis;
+
+              if( vx > vy ) {
+                  axis = Math.random() < vx / ( vx + vy ) ? 'h' : 'v';
+              }
+              else {
+                  axis = Math.random() < vy / ( vx + vy ) ? 'v' : 'h';
+              }
+
+              if( axis === 'h' ) {
+                  direction = velocity.x > 0 ? 'l' : 'r';
+              }
+              else {
+                  direction = velocity.y > 0 ? 't' : 'b';
+              }
+          }
+
+          star.z = STAR_MIN_SCALE + Math.random() * ( 1 - STAR_MIN_SCALE );
+
+          if( direction === 'z' ) {
+              star.z = 0.1;
+              star.x = Math.random() * width;
+              star.y = Math.random() * height;
+          }
+          else if( direction === 'l' ) {
+              star.x = -OVERFLOW_THRESHOLD;
+              star.y = height * Math.random();
+          }
+          else if( direction === 'r' ) {
+              star.x = width + OVERFLOW_THRESHOLD;
+              star.y = height * Math.random();
+          }
+          else if( direction === 't' ) {
+              star.x = width * Math.random();
+              star.y = -OVERFLOW_THRESHOLD;
+          }
+          else if( direction === 'b' ) {
+              star.x = width * Math.random();
+              star.y = height + OVERFLOW_THRESHOLD;
+          }
+
+      }
+
+      function resize() {
+
+          scale = window.devicePixelRatio || 1;
+
+          width = window.innerWidth * scale;
+          height = window.innerHeight * scale;
+
+          canvas.width = width;
+          canvas.height = height;
+
+          stars.forEach( placeStar );
+
+      }
+
+      function step() {
+
+          context.clearRect( 0, 0, width, height );
+
+          update();
+          render();
+
+          requestAnimationFrame( step );
+
+      }
+
+      function update() {
+
+          velocity.tx *= 0.96;
+          velocity.ty *= 0.96;
+
+          velocity.x += ( velocity.tx - velocity.x ) * 0.8;
+          velocity.y += ( velocity.ty - velocity.y ) * 0.8;
+
+          stars.forEach( ( star ) => {
+
+              star.x += velocity.x * star.z;
+              star.y += velocity.y * star.z;
+
+              star.x += ( star.x - width/2 ) * velocity.z * star.z;
+              star.y += ( star.y - height/2 ) * velocity.z * star.z;
+              star.z += velocity.z;
+
+              if( star.x < -OVERFLOW_THRESHOLD || star.x > width + OVERFLOW_THRESHOLD || star.y < -OVERFLOW_THRESHOLD || star.y > height + OVERFLOW_THRESHOLD ) {
+                  recycleStar( star );
+              }
+
+          } );
+
+      }
+
+      function render() {
+
+          stars.forEach( ( star ) => {
+
+              context.beginPath();
+              context.lineCap = 'round';
+              context.lineWidth = STAR_SIZE * star.z * scale;
+              context.globalAlpha = 0.5 + 0.5*Math.random();
+              context.strokeStyle = STAR_COLOR;
+
+              context.beginPath();
+              context.moveTo( star.x, star.y );
+
+              var tailX = velocity.x * 2,
+                  tailY = velocity.y * 2;
+
+
+              if( Math.abs( tailX ) < 0.1 ) tailX = 0.5;
+              if( Math.abs( tailY ) < 0.1 ) tailY = 0.5;
+
+              context.lineTo( star.x + tailX, star.y + tailY );
+
+              context.stroke();
+
+          } );
+
+      }
+
+      function movePointer( x, y ) {
+
+          if( typeof pointerX === 'number' && typeof pointerY === 'number' ) {
+
+              let ox = x - pointerX,
+                  oy = y - pointerY;
+
+              velocity.tx = velocity.tx + ( ox / 8*scale ) * ( touchInput ? 1 : -1 );
+              velocity.ty = velocity.ty + ( oy / 8*scale ) * ( touchInput ? 1 : -1 );
+
+          }
+
+          pointerX = x;
+          pointerY = y;
+
+      }
+
+      function onMouseMove( event ) {
+
+          touchInput = false;
+
+          movePointer( event.clientX, event.clientY );
+
+      }
+
+      function onTouchMove( event ) {
+
+          touchInput = true;
+
+          movePointer( event.touches[0].clientX, event.touches[0].clientY, true );
+
+          event.preventDefault();
+
+      }
+
+      function onMouseLeave() {
+
+          pointerX = null;
+          pointerY = null;
+
+      }
+
+  </script>
+
+
+<nav id="sidebar">
+  <ul>
+    <li>
+      <span class="logo">FIB</span>
+      <button onclick="toggleSidebar()" id="toggle-btn">
+        <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#e8eaed">
+          <path d="m313-480 155 156q11 11 11.5 27.5T468-268q-11 11-28 11t-28-11L228-452q-6-6-8.5-13t-2.5-15q0-8 2.5-15t8.5-13l184-184q11-11 27.5-11.5T468-692q11 11 11 28t-11 28L313-480Zm264 0 155 156q11 11 11.5 27.5T732-268q-11 11-28 11t-28-11L492-452q-6-6-8.5-13t-2.5-15q0-8 2.5-15t8.5-13l184-184q11-11 27.5-11.5T732-692q11 11 11 28t-11 28L577-480Z"/>
+        </svg>
+      </button>
+    </li>
+    <li class="active">
+      <a href="index.html">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" style="fill: rgba(255, 255, 255, 1);"><path d="M5 22h14a2 2 0 0 0 2-2v-9a1 1 0 0 0-.29-.71l-8-8a1 1 0 0 0-1.41 0l-8 8A1 1 0 0 0 3 11v9a2 2 0 0 0 2 2zm5-2v-5h4v5zm-5-8.59 7-7 7 7V20h-3v-5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v5H5z"></path></svg>
+        <span>STARTSEITE</span>
+      </a>
+    </li>
+    <li>
+      <a href="FIB.html">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" style="fill: rgba(255, 255, 255, 1);"><path d="M21 8c-.202 0-4.85.029-9 2.008C7.85 8.029 3.202 8 3 8a1 1 0 0 0-1 1v9.883a1 1 0 0 0 .305.719c.195.188.48.305.729.28l.127-.001c.683 0 4.296.098 8.416 2.025.016.008.034.005.05.011.119.049.244.083.373.083s.254-.034.374-.083c.016-.006.034-.003.05-.011 4.12-1.928 7.733-2.025 8.416-2.025l.127.001c.238.025.533-.092.729-.28.194-.189.304-.449.304-.719V9a1 1 0 0 0-1-1zM4 10.049c1.485.111 4.381.48 7 1.692v7.742c-3-1.175-5.59-1.494-7-1.576v-7.858zm16 7.858c-1.41.082-4 .401-7 1.576v-7.742c2.619-1.212 5.515-1.581 7-1.692v7.858z"></path><circle cx="12" cy="5" r="3"></circle></svg>
+        <span>ÜBER DAS FIB</span>
+      </a>
+    </li>
+    <li>
+      <a href="Abteilungen.html">
+        <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#EFEFEF"><path d="M280-400q-33 0-56.5-23.5T200-480q0-33 23.5-56.5T280-560q33 0 56.5 23.5T360-480q0 33-23.5 56.5T280-400Zm0 160q-100 0-170-70T40-480q0-100 70-170t170-70q67 0 121.5 33t86.5 87h352l120 120-180 180-80-60-80 60-85-60h-47q-32 54-86.5 87T280-240Zm0-80q56 0 98.5-34t56.5-86h125l58 41 82-61 71 55 75-75-40-40H435q-14-52-56.5-86T280-640q-66 0-113 47t-47 113q0 66 47 113t113 47Z"/></svg>
+        <span>ABTEILUNGEN</span>
+      </a>
+    </li><li>
+      <a href="Bewerbung.html">
+      <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#EFEFEF"><path d="M120-80v-23q0-24 13-44t36-30q26-11 53.5-17t57.5-6q30 0 57.5 6t53.5 17q23 10 36 30t13 44v23H120Zm400 0v-23q0-24 13-44t36-30q26-11 53.5-17t57.5-6q30 0 57.5 6t53.5 17q23 10 36 30t13 44v23H520ZM280-240q-33 0-56.5-23.5T200-320q0-33 23.5-56.5T280-400q33 0 56.5 23.5T360-320q0 33-23.5 56.5T280-240Zm400 0q-33 0-56.5-23.5T600-320q0-33 23.5-56.5T680-400q33 0 56.5 23.5T760-320q0 33-23.5 56.5T680-240Zm-200-80L360-440l42-42 48 47v-85h60v85l48-47 42 42-120 120ZM80-560v-23q0-24 13-44t36-30q26-11 53.5-17t57.5-6q20 0 39.5 3t37.5 8q-17 17-27 39t-10 47v23H80Zm240 0v-23q0-24 13-44t36-30q26-11 53.5-17t57.5-6q30 0 57.5 6t53.5 17q23 10 36 30t13 44v23H320Zm360 0v-23q0-25-10-47t-27-39q18-5 37.5-8t39.5-3q30 0 57.5 6t53.5 17q23 10 36 30t13 44v23H680ZM240-720q-33 0-56.5-23.5T160-800q0-33 23.5-56.5T240-880q33 0 56.5 23.5T320-800q0 33-23.5 56.5T240-720Zm240 0q-33 0-56.5-23.5T400-800q0-33 23.5-56.5T480-880q33 0 56.5 23.5T560-800q0 33-23.5 56.5T480-720Zm240 0q-33 0-56.5-23.5T640-800q0-33 23.5-56.5T720-880q33 0 56.5 23.5T800-800q0 33-23.5 56.5T720-720Z"/></svg>
+        <span>BEWERBUNG</span>
+      </a>
+    </li><li>
+      <a href="https://docs.google.com/document/d/16jZ895W1aOA8PBF7y17iXvkwD0ax7QPN7Y1tCGsWFQM/preview" target="_blank">
+        <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#EFEFEF">
+          <path d="m640-480 80 80v80H520v240l-40 40-40-40v-240H240v-80l80-80v-280h-40v-80h400v80h-40v280Zm-286 80h252l-46-46v-314H400v314l-46 46Zm126 0Z"/>
+        </svg>
+        <span>VORSCHRIFTEN</span>
+      </a>
+    </li><li>
+      <a href="Leaderschaft.html">
+      <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#EFEFEF"><path d="M200-80q-50 0-85-35t-35-85q0-39 22.5-70t57.5-43v-87q0-50 35-85t85-35h160v-127q-35-12-57.5-43T360-760q0-50 35-85t85-35q50 0 85 35t35 85q0 39-22.5 70T520-647v127h160q50 0 85 35t35 85v87q35 12 57.5 43t22.5 70q0 50-35 85t-85 35q-50 0-85-35t-35-85q0-39 22.5-70t57.5-43v-87q0-17-11.5-28.5T680-440H520v127q35 12 57.5 43t22.5 70q0 50-35 85t-85 35q-50 0-85-35t-35-85q0-39 22.5-70t57.5-43v-127H280q-17 0-28.5 11.5T240-400v87q35 12 57.5 43t22.5 70q0 50-35 85t-85 35Zm0-80q17 0 28.5-11.5T240-200q0-17-11.5-28.5T200-240q-17 0-28.5 11.5T160-200q0 17 11.5 28.5T200-160Zm280 0q17 0 28.5-11.5T520-200q0-17-11.5-28.5T480-240q-17 0-28.5 11.5T440-200q0 17 11.5 28.5T480-160Zm280 0q17 0 28.5-11.5T800-200q0-17-11.5-28.5T760-240q-17 0-28.5 11.5T720-200q0 17 11.5 28.5T760-160ZM480-720q17 0 28.5-11.5T520-760q0-17-11.5-28.5T480-800q-17 0-28.5 11.5T440-760q0 17 11.5 28.5T480-720Z"/></svg>
+        <span>LEADERSCHAFT</span>
+      </a>
+    </li>
+  </ul>
+</nav>
+
+  <!-- Inhalt -->
+  <div class="content">
+    <h1> ÜBER DAS FIB </h1>
+    <br>
+    <h5>Das <b>Federal Investigation Bureau (FIB)</b> ist eine der wichtigsten und mächtigsten Strafverfolgungsbehörden in der Welt von Los Santos. 
+      Gegründet, um auf nationaler Ebene gegen Kriminalität vorzugehen, ist das FIB für die Aufklärung und Bekämpfung von schwerwiegenden Verbrechen verantwortlich, 
+      die das allgemeine Wohl oder die öffentliche Sicherheit gefährden. Dies umfasst die Ermittlung von Terrorismus, organisierter Kriminalität und Cyberkriminalität.
+    <br>
+    <br>
+    <span class="text-mit-bild">
+      <img src="icons/test.png" alt="Lücke" style="width: auto; height: auto;">
+  </span>
+  <br>
+  <br>
+  <b>Mission & Vision</b>
+  <br>
+  Unsere Mission als FIB ist es, das Gesetz durchzusetzen und sicherzustellen, dass Kriminelle, 
+  die gegen das Wohl der Gesellschaft verstoßen, vor Gericht gestellt werden. Unser Fokus liegt auf der Anwendung modernster Ermittlungstechniken und Taktiken, 
+  um Verbrechen zu verhindern, zu untersuchen und zu bestrafen. Wir arbeiten eng mit anderen Behörden zusammen, darunter die Polizei und Justiz, 
+  um die öffentliche Sicherheit zu gewährleisten.
+    <br>
+    <br>
+    <b>Vision</b>
+    <br>
+    Das FIB strebt danach, die beste und vertrauenswürdigste Strafverfolgungsbehörde in Los Santos zu sein. 
+    Wir setzen uns für Integrität, Fairness und Gerechtigkeit ein und sind stets bestrebt, neue Wege der Verbrechensbekämpfung zu finden.
+    <br>
+    <br>
+    <span class="text-mit-bild">
+      <img src="icons/test.png" alt="Lücke" style="width: auto; height: auto;">
+  </span>
+    <br>
+    <br>
+    <b>Unsere Aufgaben</b>
+    <br>
+    Das FIB übernimmt eine Vielzahl von Aufgaben, die für den Schutz der Gesellschaft und den Erhalt der öffentlichen Ordnung entscheidend sind. Zu unseren Kernaufgaben gehören:
+    <br>
+    <br>
+    • <b>Ermittlungen in Schwerverbrechen: </b>Von Mord bis zu Terrorismus – das FIB geht jedem Verbrechen nach, das eine ernsthafte Bedrohung für das Land darstellt.
+    <br>
+    <br>
+    • <b>Bekämpfung der organisierten Kriminalität: </b> Wir überwachen und zerschlagen kriminelle Organisationen, die in illegale Geschäfte wie Drogenhandel, Menschenhandel und Waffenschmuggel verwickelt sind.
+    <br>
+    <br>
+    • <b>Cyberkriminalität: </b> Unsere Cyber Crime Unit beschäftigt sich mit der Aufdeckung und Verhinderung von digitalen Straftaten, von Hacking bis zu Identitätsdiebstahl.
+    <br>
+    <br>
+    • <b>Korruptionsbekämpfung: </b> Unsere Abteilung für Internal Affairs untersucht Korruption innerhalb des FIB und anderen staatlichen Institutionen.
+    <br>
+    <br>
+    <span class="text-mit-bild">
+      <img src="icons/test.png" alt="Lücke" style="width: auto; height: auto;">
+  </span>
+  <br>
+  <br>
+  <b>Unsere Werte</b>
+    <br>
+    • <b>Integrität: </b>Wir handeln immer im Einklang mit den höchsten moralischen Standards.
+    <br>
+    • <b>Zusammenarbeit: </b>Wir arbeiten Hand in Hand mit anderen Behörden, um unsere Ziele zu erreichen.
+    <br>
+    • <b>Effizienz: </b>Wir setzen Ressourcen optimal ein, um Verbrechen schnell und effektiv zu bekämpfen.
+    <br>
+    • <b>Vertrauen: </b>Das Vertrauen der Öffentlichkeit ist das Fundament unserer Arbeit.
+    <br>
+    <br>
+    <span class="text-mit-bild">
+      <img src="icons/test.png" alt="Lücke" style="width: auto; height: auto;">
+  </span>
+    <br>
+    <br>
+    <b>Fazit</b>
+    <br>
+    Das FIB ist nicht nur eine Ermittlungsbehörde, sondern ein Garant für Sicherheit und Gerechtigkeit. Unsere Aufgabe ist es, Verbrecher zu fassen, das Gesetz zu wahren und dafür zu sorgen, 
+    dass die Gesellschaft in einer sicheren Umgebung lebt. In einer Welt voller Gefahren bleibt das FIB stets wachsam und bereit, sich jeder Herausforderung zu stellen.
+    <br>
+    <br>
+    <br>
+    <br>
+
+      </h5>
+  </div>
+
+  <!-- Optional: Footer -->
+  <footer>
+    &copy; 2025 BELARUE. Alle Rechte vorbehalten.
+  </footer>
+  <script>
+    // Rechtsklick deaktivieren
+    document.addEventListener('contextmenu', event => event.preventDefault());
+
+    // Warnung beim Kopieren
+    document.addEventListener('copy', function(event) {
+        alert('© 2025 BELARUE. Alle Rechte vorbehalten.');
+        event.preventDefault();
+    });
+
+    // Nutzung der Konsole blockieren
+    console.log = function() {
+        alert("© 2025 BELARUE. Alle Rechte vorbehalten.");
+    };
+</script>
+<script>
+    document.addEventListener('keydown', function(e) {
+      if (e.ctrlKey && (e.key === 'u' || e.key === 'U' || e.key === 'i' || e.key === 'I')) {
+        e.preventDefault();
+        alert('© 2025 BELARUE. Alle Rechte vorbehalten.');
+      }
+    });
+  </script>
+</body>
+</html>
